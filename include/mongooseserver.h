@@ -86,7 +86,7 @@ namespace pml::restgoose
             void Stop();
 
 
-            bool AddWebsocketEndpoint(const endpoint& theEndpoint, const std::function<bool(const endpoint&, const query&, const userName&, const ipAddress&)>& funcAuthentication, const std::function<std::string(const endpoint&, const ipAddress&)>& funcOpen,
+            bool AddWebsocketEndpoint(const endpoint& theEndpoint, const std::function<bool(const endpoint&, const query&, const userName&, const ipAddress&)>& funcAuthentication,
                                         const std::function<bool(const endpoint&, const Json::Value&)>& funcMessage,
                                         const std::function<void(const endpoint&, const ipAddress&)>& funcClose);
 
@@ -149,10 +149,6 @@ namespace pml::restgoose
             const ipAddress& GetCurrentPeer(bool bIncludePort = true) const;
 
             ~MongooseServer();
-
-
-            void EnableOverallRedirect(bool bPermanent, const endpoint& theEndpoint);
-            void DisableOverallRedirect();
 
         protected:
 
@@ -252,8 +248,6 @@ namespace pml::restgoose
 
             void SendAndCheckPings(const std::chrono::milliseconds& elapsed);
 
-            void SendRedirect(mg_connection* pConnection, const endpoint& theEndpoint) const;
-
             mg_connection* m_pConnection = nullptr;
             int m_nPipe =0;
             std::string m_sIniPath;
@@ -280,7 +274,6 @@ namespace pml::restgoose
             std::map<methodpoint, endpointCallback> m_mEndpoints;
             std::map<endpoint, std::function<bool(const endpoint&, const query&, const userName&, const ipAddress& peer)>, end_less> m_mWebsocketAuthenticationEndpoints;
             std::map<endpoint, std::function<bool(const endpoint&, const Json::Value&)>, end_less> m_mWebsocketMessageEndpoints;
-            std::map<endpoint, std::function<std::string(const endpoint&, const ipAddress& peer)>, end_less> m_mWebsocketOpenEndpoints;
             std::map<endpoint, std::function<void(const endpoint&, const ipAddress& peer)>, end_less> m_mWebsocketCloseEndpoints;
             std::multimap<endpoint, httpMethod, end_less> m_mmOptions;
 
@@ -328,18 +321,6 @@ namespace pml::restgoose
                                                             {headerName("Access-Control-Max-Age"), headerValue("3600")}};
 
             std::string m_sHostname;
-
-
-            enum class redirectType
-            {
-                none,
-                permanent,
-                temporary
-            };
-
-            std::string m_sProtocol;
-            redirectType m_redirectType = redirectType::none;
-            endpoint m_redirectEndpoint;
     };
 }
 #endif

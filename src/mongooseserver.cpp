@@ -368,7 +368,7 @@ void MongooseServer::DoWebsocketAuthentication(mg_connection* pConnection, subsc
     }
     else
     {
-        pml::log::log(pml::log::Level::kDebug) << "Websocket subscriber not authenticated: close";
+        pml::log::log(pml::log::Level::kDebug) << "tWebsocket subscriber not authenticated: close";
         m_mSubscribers.erase(pConnection);
         pConnection->is_closing = 1;
     }
@@ -414,7 +414,7 @@ void MongooseServer::HandleExternalWebsocketMessage(mg_connection* pConnection, 
         }
         else
         {
-            pml::log::warning("pml::restgoose") << "Websocket subscriber: " << sub.peer << " has no message methodpoint!";
+            pml::log::warning("pml::restgoose") << "" << sub.peer << " has no message methodpoint!";
         }
     }
     else
@@ -427,19 +427,19 @@ void MongooseServer::HandleExternalWebsocketMessage(mg_connection* pConnection, 
 
 void MongooseServer::AddWebsocketSubscriptions(subscriber& sub, const Json::Value& jsData) const
 {
-    pml::log::debug("pml::restgoose") << "Websocket subscriber: " << sub.peer << " adding subscriptions " << jsData;
+    pml::log::debug("pml::restgoose") << "tWebsocket subscriber: " << sub.peer << " adding subscriptions " << jsData;
 
     if(jsData["endpoints"].isArray())
     {
         for(const auto& jsEndpoint : jsData["endpoints"])
         {
-            pml::log::debug("pml::restgoose") << "Websocket subscriber: " << sub.peer << " adding subscription " << jsEndpoint.asString();
+            pml::log::debug("pml::restgoose") << "tWebsocket subscriber: " << sub.peer << " adding subscription " << jsEndpoint.asString();
             sub.setEndpoints.emplace(jsEndpoint.asString());
         }
     }
     else
     {
-        pml::log::debug("pml::restgoose") << "Websocket subscriber: Incorrect JSON";
+        pml::log::debug("pml::restgoose") << "tWebsocket subscriber: Incorrect JSON";
     }
 }
 
@@ -566,9 +566,8 @@ methodpoint MongooseServer::GetMethodPoint(mg_http_message* pMessage) const
     mg_url_decode(pMessage->uri.buf, pMessage->uri.len, decode, 6000, 0);
 
     std::string sUri(decode);
-    pml::log::trace("pml::restgoose") << "GetMethodPoint: '" << sUri    << "'";
 
-    if(sUri[sUri.length()-1] == '/' && sUri.length() > 1)    //get rid of trailling / if it's not the root endpoint
+    if(sUri[sUri.length()-1] == '/')    //get rid of trailling /
     {
         sUri = sUri.substr(0, sUri.length()-1);
     }
@@ -592,7 +591,7 @@ methodpoint MongooseServer::GetMethodPoint(mg_http_message* pMessage) const
     std::string sMethod(pMessage->method.buf);
     size_t nSpace = sMethod.find(' ');
     sMethod = sMethod.substr(0, nSpace);
-    pml::log::debug("pml::restgoose") << "GetMethodPoint: " << sMethod << "\t'" << sUri << "'";
+    pml::log::debug("pml::restgoose") << "GetMethodPoint: " << sMethod << "\t" << sUri;
 
     return methodpoint(httpMethod(sMethod), endpoint(sUri));
 
@@ -600,18 +599,11 @@ methodpoint MongooseServer::GetMethodPoint(mg_http_message* pMessage) const
 
 void MongooseServer::EventHttp(mg_connection *pConnection, int, void* pData)
 {
-    
-
     auto pMessage = reinterpret_cast<mg_http_message*>(pData);
 
     auto thePoint = GetMethodPoint(pMessage);
     auto content = mg_http_get_header(pMessage, "Content-Type");
 
-    if(m_redirectType != redirectType::none)
-    {
-        SendRedirect(pConnection, thePoint.second);
-        return;
-    }
 
     std::string sContents;
     if(content && content->len > 0)
@@ -684,24 +676,6 @@ void MongooseServer::EventHttpWebsocket(mg_connection *pConnection, mg_http_mess
         DoWebsocketAuthentication(pConnection, itSub->second, Json::Value(Json::nullValue));
     }
 
-    if(itSub->second.bAuthenticated)
-    {
-        if(auto itEndpoint = m_mWebsocketOpenEndpoints.find(uri); itEndpoint != m_mWebsocketOpenEndpoints.end())
-        {
-            auto sSend = itEndpoint->second(uri, itSub->second.peer);
-            if(sSend.empty() == false)
-            {
-                //turn message into array - for some reason sending sMessage.c_str() does not work
-                auto cstr = new char[sSend.length() + 1];
-                strcpy(cstr, sSend.c_str());
-                
-                mg_ws_send(pConnection, cstr, sSend.length(), WEBSOCKET_OP_TEXT);
-
-                delete[] cstr;
-            }
-        }
-        pml::log::info("pml::restgoose") << "Websocket subscriber: " << itSub->second.peer << " connected to endpoint: " << uri;
-    }
 }
 
 const ipAddress& MongooseServer::GetCurrentPeer(bool bIncludePort) const
@@ -995,9 +969,6 @@ bool MongooseServer::Init(const std::filesystem::path& ca, const std::filesystem
 void MongooseServer::SetInterface(const ipAddress& addr, unsigned short nPort)
 {
     m_sServerName = (m_sCert.empty() ? "http://" : "https://");
-    
-    m_sProtocol = m_sServerName;
-
     m_sServerName += addr.Get();
     m_sServerName += (nPort == 0 ? "" : ":"+std::to_string(nPort));
 
@@ -1070,7 +1041,7 @@ void MongooseServer::Stop()
     }
 }
 
-bool MongooseServer::AddWebsocketEndpoint(const endpoint& theEndpoint, const std::function<bool(const endpoint&, const query&, const userName&, const ipAddress& )>& funcAuthentication, const std::function<std::string(const endpoint&, const ipAddress&)>& funcOpen, const std::function<bool(const endpoint&, const Json::Value&)>& funcMessage, const std::function<void(const endpoint&, const ipAddress&)>& funcClose)
+bool MongooseServer::AddWebsocketEndpoint(const endpoint& theEndpoint, const std::function<bool(const endpoint&, const query&, const userName&, const ipAddress& )>& funcAuthentication, const std::function<bool(const endpoint&, const Json::Value&)>& funcMessage, const std::function<void(const endpoint&, const ipAddress&)>& funcClose)
 {
     pml::log::Stream lg(pml::log::Level::kInfo, kLogPrefix);
     lg << "AddWebsocketEndpoint <" << theEndpoint.Get() << "> ";
@@ -1082,23 +1053,10 @@ bool MongooseServer::AddWebsocketEndpoint(const endpoint& theEndpoint, const std
         return false;
     }
 
-    if(funcAuthentication && m_mWebsocketAuthenticationEndpoints.try_emplace(theEndpoint, funcAuthentication).second == false)
-    {
-        return false;
-    }
-    if(funcOpen && m_mWebsocketOpenEndpoints.try_emplace(theEndpoint, funcOpen).second == false)
-    {
-        return false;
-    }
-    if(funcMessage && m_mWebsocketMessageEndpoints.try_emplace(theEndpoint, funcMessage).second == false)
-    {
-        return false;
-    }
-    if(funcClose && m_mWebsocketCloseEndpoints.try_emplace(theEndpoint, funcClose).second == false)
-    {        
-        return false;
-    }
-    return true;
+
+    return m_mWebsocketAuthenticationEndpoints.try_emplace(theEndpoint, funcAuthentication).second &&
+           m_mWebsocketMessageEndpoints.try_emplace(theEndpoint, funcMessage).second &&
+           m_mWebsocketCloseEndpoints.try_emplace(theEndpoint, funcClose).second;
 }
 
 bool MongooseServer::AddEndpoint(const methodpoint& theMethodPoint, const std::function<response(const query&, const std::vector<partData>&, const endpoint&, const userName& )>& func, bool bUseThread)
@@ -1517,7 +1475,7 @@ void MongooseServer::SendAndCheckPings(const std::chrono::milliseconds& elapsed)
                             //check PONG timeout
                         if(!itSub->second.bPonged)    //not replied within the last second
                         {
-                            pml::log::warning("pml::restgoose") << "Websocket subscriber: " << itSub->second.peer << " has not responded to PING. Close";
+                            pml::log::warning("pml::restgoose") << "Websocket from " << itSub->second.peer << " has not responded to PING. Close";
                             pConnection->is_closing = true;
                             //call the close callback
                             auto itCallback = m_mWebsocketCloseEndpoints.find(itSub->second.theEndpoint);
@@ -1609,33 +1567,6 @@ void MongooseServer::SetStaticDirectory(std::string_view sDir)
 {
     pml::log::info("pml::restgoose") << "MongooseServer::SetStaticDirectory " << sDir;
      m_sStaticRootDir = sDir;
-}
-
-void MongooseServer::EnableOverallRedirect(bool bPermanent, const endpoint& theEndpoint)
-{
-    pml::log::debug("pml::restgoose") << "MongooseServer::EnableOverallRedirect to " << theEndpoint.Get() << " with type " << (bPermanent ? "permanent" : "temporary");
-
-    m_redirectType = bPermanent ? redirectType::permanent : redirectType::temporary;
-    m_redirectEndpoint = theEndpoint;
-}
-
-void MongooseServer::DisableOverallRedirect()
-{
-    pml::log::debug("pml::restgoose") << "MongooseServer::DisableOverallRedirect";
-    m_redirectType = redirectType::none;
-}
-
-void MongooseServer::SendRedirect(mg_connection* pConnection, const endpoint& theEndpoint) const
-{
-    pml::log::debug("pml::restgoose") << "MongooseServer::SendRedirect to " << m_redirectEndpoint.Get() << theEndpoint << " with type " << (m_redirectType == redirectType::permanent ? "permanent" : "temporary");
-
-    std::stringstream ssHeaders;
-    ssHeaders << "HTTP/1.1 " << (m_redirectType == redirectType::permanent ? "301" : "302") << "\r\n"
-                << "Location: " << m_sProtocol << m_redirectEndpoint.Get() << theEndpoint.Get() << "\r\n"
-                << "\r\n";
-
-    mg_send(pConnection, ssHeaders.str().c_str(), ssHeaders.str().length());
-    pConnection->is_draining = 1;
 }
 
 }
